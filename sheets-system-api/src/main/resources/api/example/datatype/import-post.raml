@@ -1,0 +1,19 @@
+#%RAML 1.0 DataType
+type: object
+properties:
+  firstName:
+    type: string
+    required: true
+    minLength: 3
+    maxLength: 15
+  lastName:
+    type: string
+    required: true
+    minLength: 3
+    maxLength: 15
+  age:
+    type: integer
+    required: false
+  email:
+    type: string
+    required: true

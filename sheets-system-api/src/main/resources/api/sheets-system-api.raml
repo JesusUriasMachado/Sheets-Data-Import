@@ -1,0 +1,69 @@
+#%RAML 1.0
+title: sheets-system-api
+baseUri: http://{host}:{port}/api/
+version: v1
+description: RAML para implementar la importacion con google sheets, whatsapp, y politicas ID enforcement.
+protocols: [http]
+securitySchemes:
+  basic:
+    type: Basic Authentication
+securedBy: [basic]
+traits:
+  hasHeaders:
+    headers:
+      client_id:
+        type: string
+        required: true
+        displayName: Llave del cliente
+        description: Usada para identificar al cliente
+      client_secret:
+        type: string
+        required: true
+        displayName: Llave secreta del cliente
+        description: Se usa para asegurar los endpoints
+
+/import:
+  displayName: Importar datos
+  description: Importar datos desde Google Sheets
+  get:
+    queryParameters:
+      spreadsheet:
+        type: string
+        required: true
+        displayName: Hoja de la cual tomar la informacion
+        description: Ingresar la hoja de la cual se tomara la informacion
+      range:
+        type: string
+        required: true
+        displayName: Rango del cual tomar la informacion
+        description: Ingresar el rango en el que se encuentran los datos a ingresar
+    displayName: Obtener datos a importar
+    description: Obtiene los datos a importar por medio del nombre de la hoja y el rango
+    is:
+      - hasHeaders
+    responses:
+      200:
+        description: OK
+        body:
+          application/json:
+            example: !include example/import/get.json
+      404:
+        description: Not Found
+        body:
+          application/json:
+            example: !include example/import/404.json
+  post:
+    is:
+      - hasHeaders
+    body:
+      application/csv:
+        type: !include example/datatype/import-post.raml
+        example: !include example/datatype/post.json
+    displayName: Insertar datos
+    description: Usado para insertar los datos a Salesforce una vez obtenidos de Google Shets
+    responses:
+      201:
+        description: CREATED
+        body:
+          application/json:
+            example: !include example/import/post.json

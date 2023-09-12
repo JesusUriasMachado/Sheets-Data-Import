@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce" xmlns:google-sheets="http://www.mulesoft.org/schema/mule/google-sheets" xmlns:tls="http://www.mulesoft.org/schema/mule/tls" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd 
+http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd
+http://www.mulesoft.org/schema/mule/google-sheets http://www.mulesoft.org/schema/mule/google-sheets/current/mule-google-sheets.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd">
+    <http:listener-config name="sheets-system-api-httpsListenerConfig">
+        <http:listener-connection host="0.0.0.0" port="${secure::https.port}" protocol="HTTPS" tlsContext="TLS_Context"/>
+    </http:listener-config>
+    <apikit:config name="sheets-system-api-config" api="sheets-system-api.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
+    <tls:context name="TLS_Context" doc:name="TLS Context" doc:id="db8d7302-8932-4bf4-8e75-fb8769817326" >
+		<tls:key-store type="jks" path="${secure::key.path}" alias="${secure::key.alias}" keyPassword="${secure::key.pass}" password="${secure::key.pass}" />
+	</tls:context>
+	<google-sheets:config name="Google_Sheets_Config" doc:name="Google Sheets Config" doc:id="7ac72fa6-c6de-43d4-b5cb-98874c3b3330" >
+		<google-sheets:oauth-2-0-connection >
+			<google-sheets:oauth-authorization-code consumerKey="${secure::google.consumerKey}" consumerSecret="${secure::google.consumerSecret}" />
+			<google-sheets:oauth-callback-config listenerConfig="sheets-system-api-httpsListenerConfig" callbackPath="/callback" authorizePath="/authorize" externalCallbackUrl="https://localhost:8082/callback" />
+		</google-sheets:oauth-2-0-connection>
+	</google-sheets:config>
+	<salesforce:sfdc-config name="Salesforce_Config" doc:name="Salesforce Config" doc:id="c6981d0d-2835-48ec-a98e-5a5c2845d97c" >
+		<salesforce:basic-connection username="${secure::sf.user}" password="${secure::sf.pass}" securityToken="${secure::sf.token}" />
+	</salesforce:sfdc-config>
+	<http:request-config name="whatsappConfiguration" doc:name="HTTP Request configuration" doc:id="d5b3139f-2d71-4569-acaf-e802ea0f2f2a">
+		<http:request-connection host="graph.facebook.com" protocol="HTTPS"/>
+		<http:default-headers >
+			<http:default-header key="Authorization" value="Bearer EAAEfa0V5PHIBO9nYxV5ZBbXSy0fYa4LkGktBcUlHZBgUlGhlvnrfpaJ2t8sNyuaHcHU6NdtA5x9KFHBB9Aj6TOq3iY6swT2WjTAS2ZCoeEaoECxmJtdQTaitRXaghq9DZApo1nUaCeX6DTdjBQVQ2ACSqW5WRv5vD5ItJjTtYcK6VcqVSK6CZClZBlL0FYUNOT85I4z918KVtZA3gGFtsoZD" />
+		</http:default-headers>
+	</http:request-config>
+	<flow name="sheets-system-api-main">
+        <http:listener config-ref="sheets-system-api-httpsListenerConfig" path="/api/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body><![CDATA[#[payload]]]></http:body>
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:router config-ref="sheets-system-api-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:BAD_REQUEST">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Bad request",
+	details : error.description
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[400]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:METHOD_NOT_ALLOWED">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Method not allowed"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">405</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_ACCEPTABLE">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not acceptable"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">406</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:UNSUPPORTED_MEDIA_TYPE">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Unsupported media type"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">415</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_IMPLEMENTED">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not Implemented"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">501</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="sheets-system-api-console">
+        <http:listener config-ref="sheets-system-api-httpsListenerConfig" path="/console/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body><![CDATA[#[payload]]]></http:body>
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:console config-ref="sheets-system-api-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="get:\import:sheets-system-api-config">
+		<google-sheets:get-spreadsheets-values-by-spreadsheet-id-range doc:name="Get Spreadsheets Values" doc:id="9dfbb4b0-9a9f-4d08-b1c2-f18e2e3daa2f" config-ref="Google_Sheets_Config" spreadsheetId="#[attributes.queryParams.spreadsheet]" range="#[attributes.queryParams.range]"/>
+		<ee:transform doc:name="Transform Message" doc:id="2a6e15d5-449a-425f-a775-8faf940e4308" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+var headers = payload.values[0] //collects headers
+---
+(payload.values map(record,index)-> {
+    (headers map (header,index)->{
+        (header):record[index]
+    })
+})]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<ee:transform doc:name="Transform Message" doc:id="06b940f6-a3c4-4110-93ed-5a0359eae232" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+import * from dw::core::Arrays
+---
+drop(payload, 1)]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<flow-ref doc:name="Flow Reference" doc:id="80c19142-2d23-41d9-b113-c35472197bd5" name="post:\import:application\csv:sheets-system-api-config"/>
+    </flow>
+    <flow name="post:\import:application\csv:sheets-system-api-config" doc:id="b30dbacd-0999-4c9f-a884-6412c23e1faa">
+		<ee:transform doc:name="Transform Message" doc:id="943d201f-af4e-486b-9db8-8081ff29530b" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/csv header=true, quoteValues=true
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<salesforce:create-job-bulk-api-v2 objectType="practica10__c" operation="upsert" doc:name="Create job bulk api v 2" doc:id="88c911fd-6499-484e-85c5-05017ba57d92" config-ref="Salesforce_Config" lineEnding="CRLF" externalIdFieldName="id__c"/>
+		<set-variable value="#[payload.id]" doc:name="Set Variable" doc:id="96ab2092-d7c4-427d-ae00-604765c52f2e" variableName="jobId"/>
+		<flow-ref doc:name="Flow Reference" doc:id="d14be31e-47f5-45b0-95d8-426f73627ffb" name="monitor-bulk"/>
+		<salesforce:retrieve-job-failed-results-bulk-v2 doc:name="Retrieve job failed results bulk v 2" doc:id="752a23bd-328c-4207-aa92-5547502c264a" config-ref="Salesforce_Config" id="#[vars.JobId]"/>
+		<set-variable value="#[payload]" doc:name="Set Variable" doc:id="4697cfec-2f5c-4cdd-ab07-b532289d709f" variableName="PayloadFailed"/>
+		<salesforce:retrieve-job-successful-results-bulk-v2 doc:name="Retrieve job successful results bulk v 2" doc:id="78611846-c74e-4ecc-8113-0142eeed8448" config-ref="Salesforce_Config" id="#[vars.JobId]"/>
+		<set-variable value="#[payload]" doc:name="Set Variable" doc:id="399c3623-6bcd-4743-aba4-674a574ecc4a" variableName="PayloadSuccessful"/>
+		<flow-ref doc:name="Flow Reference" doc:id="a2604f98-2c0b-4252-a44c-7bc9718dcb55" name="whatsapp-notifications"/>
+		<ee:transform doc:name="Transform Message" doc:id="1faba212-d0f3-4369-be2f-d691a6354163" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "Proceso terminado",
+	successful : sizeOf(vars.PayloadSuccessful),
+	failed : sizeOf(vars.PayloadFailed)
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+    </flow>
+	<flow name="monitor-bulk" doc:id="3b457922-2d6d-4c1c-97f2-d6be79ba0c34" >
+		<until-successful maxRetries="5" doc:name="Until Successful" doc:id="75d70c65-8bdd-44da-b9c0-065361c37cba" millisBetweenRetries="10000">
+			<try doc:name="Try" doc:id="41ec7be2-9838-4ea5-ab3c-ecb0af7dfac4" >
+				<salesforce:get-job-state-bulk-api-v2 doc:name="Get job state bulk api v 2" doc:id="7a764744-534e-408b-9fa3-5b7d3e33b468" config-ref="Salesforce_Config" id="#[vars.jobId]"/>
+				<choice doc:name="Choice" doc:id="b7141dd6-715a-43fa-922f-5185e989a6f4" >
+					<when expression='#[payload.state == "JobComplete"]'>
+						<ee:transform doc:name="Transform Message" doc:id="9c8a2100-916c-449a-a50f-e2354b9a4f3b" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "Whatsaspp notification"
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+					</when>
+					<otherwise >
+						<raise-error doc:name="Raise error" doc:id="2b758486-cef9-4d55-a0e9-7f57f91d1e79" type="MULE:EXPRESSION"/>
+					</otherwise>
+				</choice>
+				<error-handler >
+					<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="b64ae19a-382e-499e-98a6-c535de029016" >
+						<flow-ref doc:name="Flow Reference" doc:id="1e02eabe-700c-4342-b254-0a142e888d7c" name="whatsapp-notifications"/>
+					</on-error-propagate>
+				</error-handler>
+			</try>
+		</until-successful>
+	</flow>
+	<flow name="whatsapp-notifications" doc:id="f559d577-3673-40ec-9157-809915c0238b" >
+		<ee:transform doc:name="Transform Message" doc:id="5472a9ee-6988-4570-92e2-32b4e6614e32" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"messaging_product": "whatsapp",
+	"to": "YOUR PHONE NUMBER",
+	"type": "template",
+	"template": {
+		"name": "hello_world",
+		"language": {
+			"code": "en_US"
+		}
+	}
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<http:request method="POST" doc:name="Request" doc:id="d15bd31a-ecd0-489e-b06e-32a953d770f3" config-ref="whatsappConfiguration" path="/v17.0/113817378483732/messages"/>
+	</flow>
+</mule>
