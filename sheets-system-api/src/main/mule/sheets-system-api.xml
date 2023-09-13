@@ -188,7 +188,6 @@ payload]]></ee:set-payload>
 		<set-variable value="#[payload]" doc:name="Set Variable" doc:id="4697cfec-2f5c-4cdd-ab07-b532289d709f" variableName="PayloadFailed"/>
 		<salesforce:retrieve-job-successful-results-bulk-v2 doc:name="Retrieve job successful results bulk v 2" doc:id="78611846-c74e-4ecc-8113-0142eeed8448" config-ref="Salesforce_Config" id="#[vars.JobId]"/>
 		<set-variable value="#[payload]" doc:name="Set Variable" doc:id="399c3623-6bcd-4743-aba4-674a574ecc4a" variableName="PayloadSuccessful"/>
-		<flow-ref doc:name="Flow Reference" doc:id="a2604f98-2c0b-4252-a44c-7bc9718dcb55" name="whatsapp-notifications"/>
 		<ee:transform doc:name="Transform Message" doc:id="1faba212-d0f3-4369-be2f-d691a6354163" >
 			<ee:message >
 				<ee:set-payload ><![CDATA[%dw 2.0
@@ -208,16 +207,7 @@ output application/json
 				<salesforce:get-job-state-bulk-api-v2 doc:name="Get job state bulk api v 2" doc:id="7a764744-534e-408b-9fa3-5b7d3e33b468" config-ref="Salesforce_Config" id="#[vars.jobId]"/>
 				<choice doc:name="Choice" doc:id="b7141dd6-715a-43fa-922f-5185e989a6f4" >
 					<when expression='#[payload.state == "JobComplete"]'>
-						<ee:transform doc:name="Transform Message" doc:id="9c8a2100-916c-449a-a50f-e2354b9a4f3b" >
-							<ee:message >
-								<ee:set-payload ><![CDATA[%dw 2.0
-output application/json
----
-{
-	message : "Whatsaspp notification"
-}]]></ee:set-payload>
-							</ee:message>
-						</ee:transform>
+						<logger level="INFO" doc:name="Logger" doc:id="d70fa84d-2c8d-455b-8645-e0696b63e899" message="--- BULK TERMINADO ---"/>
 					</when>
 					<otherwise >
 						<raise-error doc:name="Raise error" doc:id="2b758486-cef9-4d55-a0e9-7f57f91d1e79" type="MULE:EXPRESSION"/>
@@ -225,31 +215,10 @@ output application/json
 				</choice>
 				<error-handler >
 					<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="b64ae19a-382e-499e-98a6-c535de029016" >
-						<flow-ref doc:name="Flow Reference" doc:id="1e02eabe-700c-4342-b254-0a142e888d7c" name="whatsapp-notifications"/>
+						<logger level="INFO" doc:name="Logger" doc:id="96040e9d-51dc-4765-9621-9aeac1c678a5" message="--- ERROR ---"/>
 					</on-error-propagate>
 				</error-handler>
 			</try>
 		</until-successful>
-	</flow>
-	<flow name="whatsapp-notifications" doc:id="f559d577-3673-40ec-9157-809915c0238b" >
-		<ee:transform doc:name="Transform Message" doc:id="5472a9ee-6988-4570-92e2-32b4e6614e32" >
-			<ee:message >
-				<ee:set-payload ><![CDATA[%dw 2.0
-output application/json
----
-{
-	"messaging_product": "whatsapp",
-	"to": "YOUR PHONE NUMBER",
-	"type": "template",
-	"template": {
-		"name": "hello_world",
-		"language": {
-			"code": "en_US"
-		}
-	}
-}]]></ee:set-payload>
-			</ee:message>
-		</ee:transform>
-		<http:request method="POST" doc:name="Request" doc:id="d15bd31a-ecd0-489e-b06e-32a953d770f3" config-ref="whatsappConfiguration" path="/v17.0/113817378483732/messages"/>
 	</flow>
 </mule>
